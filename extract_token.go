@@ -39,7 +39,8 @@ func validateAndExtractBearerToken(bearerToken string) (bool, string) {
 		return false, ""
 	}
 
-	ok := subtle.ConstantTimeCompare([]byte(splits[0]), []byte("Bearer")) == 1
+	tokenType := strings.ToLower(splits[0])
+	ok := subtle.ConstantTimeCompare([]byte(tokenType), []byte("bearer")) == 1
 	if !ok {
 		return false, ""
 	}

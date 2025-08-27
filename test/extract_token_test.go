@@ -16,9 +16,9 @@ func TestExtractTokenThroughAuthMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name         string
-		authStrategy string
-		setupRequest func(*gin.Context)
+		name          string
+		authStrategy  string
+		setupRequest  func(*gin.Context)
 		expectedAbort bool
 	}{
 		{
@@ -70,12 +70,20 @@ func TestExtractTokenThroughAuthMiddleware(t *testing.T) {
 			expectedAbort: true,
 		},
 		{
-			name:         "Bearer strategy with case sensitive bearer",
+			name:         "Bearer strategy with case insensitive bearer",
 			authStrategy: "Bearer",
 			setupRequest: func(ctx *gin.Context) {
 				ctx.Request.Header.Set("Authorization", "bearer token123")
 			},
-			expectedAbort: true,
+			expectedAbort: false,
+		},
+		{
+			name:         "Bearer strategy with case insensitive BEARER",
+			authStrategy: "Bearer",
+			setupRequest: func(ctx *gin.Context) {
+				ctx.Request.Header.Set("Authorization", "BEARER token123")
+			},
+			expectedAbort: false,
 		},
 		{
 			name:         "Bearer strategy with empty token",
@@ -130,38 +138,38 @@ func TestValidateAndExtractBearerTokenEdgeCases(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name         string
-		authHeader   string
+		name          string
+		authHeader    string
 		expectedAbort bool
 	}{
 		{
-			name:         "valid JWT token",
-			authHeader:   "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+			name:          "valid JWT token",
+			authHeader:    "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
 			expectedAbort: false,
 		},
 		{
-			name:         "token with special characters",
-			authHeader:   "Bearer token-with_special.chars123",
+			name:          "token with special characters",
+			authHeader:    "Bearer token-with_special.chars123",
 			expectedAbort: false,
 		},
 		{
-			name:         "very long token",
-			authHeader:   "Bearer " + string(make([]byte, 1000)),
+			name:          "very long token",
+			authHeader:    "Bearer " + string(make([]byte, 1000)),
 			expectedAbort: false,
 		},
 		{
-			name:         "empty string",
-			authHeader:   "",
+			name:          "empty string",
+			authHeader:    "",
 			expectedAbort: true,
 		},
 		{
-			name:         "only space",
-			authHeader:   " ",
+			name:          "only space",
+			authHeader:    " ",
 			expectedAbort: true,
 		},
 		{
-			name:         "Bearer with multiple spaces",
-			authHeader:   "Bearer  token",
+			name:          "Bearer with multiple spaces",
+			authHeader:    "Bearer  token",
 			expectedAbort: true, // Should be invalid due to multiple spaces
 		},
 	}
