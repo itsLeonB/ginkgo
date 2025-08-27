@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/itsLeonB/ezutil"
+	"github.com/itsLeonB/ezutil/v2"
 )
 
 type HttpServer struct {

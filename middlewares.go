@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/itsLeonB/ezutil"
+	"github.com/itsLeonB/ezutil/v2"
 	"github.com/itsLeonB/ungerr"
 	"github.com/rotisserie/eris"
 )
