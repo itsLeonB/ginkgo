@@ -20,14 +20,14 @@ type HttpServer struct {
 }
 
 func NewHttpServer(srv *http.Server, timeout time.Duration, logger ezutil.Logger, shutdownFunc func() error) *HttpServer {
-	if srv == nil {
-		log.Fatal("http.Server cannot be nil")
-	}
-	if timeout <= 0 {
-		log.Fatal("timeout must be > 0")
-	}
 	if logger == nil {
 		log.Fatal("logger cannot be nil")
+	}
+	if srv == nil {
+		logger.Fatal("http.Server cannot be nil")
+	}
+	if timeout <= 0 {
+		logger.Fatal("timeout must be > 0")
 	}
 	if shutdownFunc == nil {
 		logger.Warn("shutdownFunc is nil, continuing...")
@@ -57,8 +57,10 @@ func (hs *HttpServer) ServeGracefully() {
 		hs.logger.Fatalf("error shutting down: %s", err.Error())
 	}
 
-	if err := hs.shutdownFunc(); err != nil {
-		hs.logger.Errorf("error in terminating resources: %s", err.Error())
+	if hs.shutdownFunc != nil {
+		if err := hs.shutdownFunc(); err != nil {
+			hs.logger.Errorf("error in terminating resources: %s", err.Error())
+		}
 	}
 
 	hs.logger.Info("server successfully shutdown")

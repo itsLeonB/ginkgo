@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestNewErrorMiddleware(t *testing.T) {
+func TestMiddlewareProvider_NewErrorMiddleware(t *testing.T) {
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	assert.NotNil(t, middleware)
 }
@@ -25,7 +26,8 @@ func TestErrorMiddleware_Handle_NoError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -42,7 +44,8 @@ func TestErrorMiddleware_Handle_AppError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -69,7 +72,8 @@ func TestErrorMiddleware_Handle_UnwrappedError(t *testing.T) {
 	mockLogger.On("Error", mock.AnythingOfType("string"))
 	mockLogger.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
 
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -94,7 +98,8 @@ func TestErrorMiddleware_Handle_UnknownWrappedError(t *testing.T) {
 	mockLogger.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
 	mockLogger.On("Error", mock.AnythingOfType("string"))
 
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -117,7 +122,8 @@ func TestErrorMiddleware_Handle_MultipleErrors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -140,7 +146,8 @@ func TestErrorMiddleware_Integration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	// Create a Gin router with the error middleware
 	router := gin.New()

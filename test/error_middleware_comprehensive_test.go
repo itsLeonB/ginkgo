@@ -20,7 +20,8 @@ func TestErrorMiddleware_Handle_JSONSyntaxError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -42,7 +43,8 @@ func TestErrorMiddleware_Handle_JSONUnmarshalTypeError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -64,7 +66,8 @@ func TestErrorMiddleware_Handle_EOFError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -85,7 +88,8 @@ func TestErrorMiddleware_Handle_EOFStringError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -107,7 +111,8 @@ func TestErrorMiddleware_Handle_ConnectionResetError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -129,7 +134,8 @@ func TestErrorMiddleware_Handle_BrokenPipeError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -151,7 +157,8 @@ func TestErrorMiddleware_Handle_ValidationErrors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockLogger := &MockLogger{}
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
@@ -177,7 +184,8 @@ func TestErrorMiddleware_constructAppError_Coverage(t *testing.T) {
 	mockLogger.On("Error", mock.AnythingOfType("string"))
 	mockLogger.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
 
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	tests := []struct {
 		name           string
@@ -247,7 +255,8 @@ func TestErrorMiddleware_logUnwrappedError_Coverage(t *testing.T) {
 	mockLogger.On("Error", mock.AnythingOfType("string"))
 	mockLogger.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
 
-	middleware := ginkgo.NewErrorMiddleware(mockLogger)
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	middleware := provider.NewErrorMiddleware()
 
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)

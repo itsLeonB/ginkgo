@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/itsLeonB/ginkgo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestNewCorsMiddleware_InvalidConfig(t *testing.T) {
@@ -33,10 +34,14 @@ func TestNewCorsMiddleware_ValidConfigurations(t *testing.T) {
 	tests := []struct {
 		name       string
 		corsConfig *cors.Config
+		setupMock  func(*MockLogger)
 	}{
 		{
 			name:       "nil config",
 			corsConfig: nil,
+			setupMock: func(m *MockLogger) {
+				m.On("Warn", mock.AnythingOfType("string"))
+			},
 		},
 		{
 			name: "basic config",
@@ -45,6 +50,7 @@ func TestNewCorsMiddleware_ValidConfigurations(t *testing.T) {
 				AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
 				AllowHeaders: []string{"Content-Type", "Authorization"},
 			},
+			setupMock: func(m *MockLogger) {},
 		},
 		{
 			name: "specific origins",
@@ -53,6 +59,7 @@ func TestNewCorsMiddleware_ValidConfigurations(t *testing.T) {
 				AllowMethods: []string{"GET", "POST"},
 				AllowHeaders: []string{"Content-Type"},
 			},
+			setupMock: func(m *MockLogger) {},
 		},
 		{
 			name: "with credentials",
@@ -62,6 +69,7 @@ func TestNewCorsMiddleware_ValidConfigurations(t *testing.T) {
 				AllowHeaders:     []string{"Content-Type"},
 				AllowCredentials: true,
 			},
+			setupMock: func(m *MockLogger) {},
 		},
 		{
 			name: "with max age",
@@ -71,12 +79,17 @@ func TestNewCorsMiddleware_ValidConfigurations(t *testing.T) {
 				AllowHeaders: []string{"Content-Type"},
 				MaxAge:       3600,
 			},
+			setupMock: func(m *MockLogger) {},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			middleware := ginkgo.NewCorsMiddleware(tt.corsConfig)
+			mockLogger := &MockLogger{}
+			tt.setupMock(mockLogger)
+			
+			provider := ginkgo.NewMiddlewareProvider(mockLogger)
+			middleware := provider.NewCorsMiddleware(tt.corsConfig)
 			assert.NotNil(t, middleware)
 
 			// Test that the middleware works
@@ -118,7 +131,9 @@ func TestCorsMiddleware_Integration(t *testing.T) {
 		AllowHeaders: []string{"Content-Type", "Authorization"},
 	}
 	
-	router.Use(ginkgo.NewCorsMiddleware(corsConfig))
+	mockLogger := &MockLogger{}
+	provider := ginkgo.NewMiddlewareProvider(mockLogger)
+	router.Use(provider.NewCorsMiddleware(corsConfig))
 	
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "success"})

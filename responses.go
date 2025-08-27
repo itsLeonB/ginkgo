@@ -21,7 +21,7 @@ type Pagination struct {
 
 // IsZero checks if all pagination fields are at their zero values.
 // Returns true if the pagination data is uninitialized or empty.
-func (p *Pagination) IsZero() bool {
+func (p Pagination) IsZero() bool {
 	return p.TotalData == 0 && p.CurrentPage == 0 && p.TotalPages == 0 && !p.HasNextPage && !p.HasPrevPage
 }
 
@@ -69,6 +69,10 @@ func (jr JSONResponse) WithError(err error) JSONResponse {
 // It computes total pages and next/previous flags based on query options and total data count.
 // Returns a new JSONResponse with pagination metadata included.
 func (jr JSONResponse) WithPagination(queryOptions QueryOptions, totalData int) JSONResponse {
+	if queryOptions.Limit <= 0 {
+		return jr
+	}
+
 	totalPages := int(math.Ceil(float64(totalData) / float64(queryOptions.Limit)))
 
 	jr.Pagination = Pagination{

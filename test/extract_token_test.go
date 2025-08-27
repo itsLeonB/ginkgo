@@ -102,7 +102,9 @@ func TestExtractTokenThroughAuthMiddleware(t *testing.T) {
 				return true, map[string]any{"user_id": "123"}, nil
 			}
 
-			middleware := ginkgo.NewAuthMiddleware(tt.authStrategy, tokenCheckFunc)
+			mockLogger := &MockLogger{}
+			provider := ginkgo.NewMiddlewareProvider(mockLogger)
+			middleware := provider.NewAuthMiddleware(tt.authStrategy, tokenCheckFunc)
 
 			w := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(w)
@@ -170,7 +172,9 @@ func TestValidateAndExtractBearerTokenEdgeCases(t *testing.T) {
 				return true, map[string]any{"user_id": "123"}, nil
 			}
 
-			middleware := ginkgo.NewAuthMiddleware("Bearer", tokenCheckFunc)
+			mockLogger := &MockLogger{}
+			provider := ginkgo.NewMiddlewareProvider(mockLogger)
+			middleware := provider.NewAuthMiddleware("Bearer", tokenCheckFunc)
 
 			w := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(w)

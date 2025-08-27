@@ -311,6 +311,24 @@ func TestJSONResponse_WithPagination(t *testing.T) {
 				HasPrevPage: false,
 			},
 		},
+		{
+			name: "zero limit should return original response",
+			queryOptions: ginkgo.QueryOptions{
+				Page:  1,
+				Limit: 0,
+			},
+			totalData: 25,
+			expectedPagination: ginkgo.Pagination{}, // Should remain zero
+		},
+		{
+			name: "negative limit should return original response",
+			queryOptions: ginkgo.QueryOptions{
+				Page:  1,
+				Limit: -1,
+			},
+			totalData: 25,
+			expectedPagination: ginkgo.Pagination{}, // Should remain zero
+		},
 	}
 
 	for _, tt := range tests {
@@ -321,7 +339,12 @@ func TestJSONResponse_WithPagination(t *testing.T) {
 			assert.Nil(t, response.Data)
 			assert.Nil(t, response.Errors)
 			assert.Equal(t, tt.expectedPagination, response.Pagination)
-			assert.False(t, response.Pagination.IsZero())
+			
+			if tt.expectedPagination.IsZero() {
+				assert.True(t, response.Pagination.IsZero())
+			} else {
+				assert.False(t, response.Pagination.IsZero())
+			}
 		})
 	}
 }

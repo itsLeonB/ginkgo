@@ -15,31 +15,32 @@ import (
 	"github.com/rotisserie/eris"
 )
 
-// ErrorMiddleware handles errors and panics in Gin handlers
-type ErrorMiddleware struct {
+// errorMiddleware handles errors and panics in Gin handlers
+type errorMiddleware struct {
 	logger ezutil.Logger
 }
 
 // NewErrorMiddleware creates an error handling middleware for Gin.
-// It should be registered last and captures errors from previous handlers,
-// converts them into AppError or validation errors, and sends a structured JSON response
+// It should be registered first (outermost) so it can capture errors/panics
+// from all subsequent middlewares and handlers, even if they abort.
+// This converts them into AppError or validation errors, and sends a structured JSON response
 // with the appropriate HTTP status code. Returns a Gin HandlerFunc.
-func NewErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
-	middleware := &ErrorMiddleware{
+func newErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
+	middleware := &errorMiddleware{
 		logger: logger,
 	}
 	return middleware.Handle
 }
 
 // Handle is the main middleware function that processes errors and panics
-func (em *ErrorMiddleware) Handle(ctx *gin.Context) {
-	ctx.Next()
-
+func (em *errorMiddleware) Handle(ctx *gin.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			em.handlePanic(r, ctx)
 		}
 	}()
+
+	ctx.Next()
 
 	if err := ctx.Errors.Last(); err != nil {
 		// Check if it's already an AppError
@@ -55,7 +56,7 @@ func (em *ErrorMiddleware) Handle(ctx *gin.Context) {
 }
 
 // constructAppError converts various error types into AppError
-func (em *ErrorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
+func (em *errorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
 	// First, try to unwrap with eris to get the original error
 	originalErr := eris.Unwrap(err.Err)
 	if originalErr == nil {
@@ -101,7 +102,7 @@ func (em *ErrorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) u
 }
 
 // logUnwrappedError handles errors that weren't properly wrapped with eris
-func (em *ErrorMiddleware) logUnwrappedError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
+func (em *errorMiddleware) logUnwrappedError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
 	// This function helps you identify where errors are being added without proper wrapping
 	em.logger.Error("UNWRAPPED ERROR DETECTED - Please add eris.Wrap() or return ungerr.AppError")
 	em.logger.Errorf("Error type: %T", err.Err)
@@ -128,7 +129,7 @@ func (em *ErrorMiddleware) logUnwrappedError(err *gin.Error, ctx *gin.Context) u
 }
 
 // logAndMaskError handles eris-wrapped errors that need to be masked from users
-func (em *ErrorMiddleware) logAndMaskError(err error) ungerr.AppError {
+func (em *errorMiddleware) logAndMaskError(err error) ungerr.AppError {
 	em.logger.Errorf("Unhandled eris-wrapped error of type: %T", err)
 	em.logger.Error("Full stack trace:")
 	em.logger.Error(eris.ToString(err, true))
@@ -137,7 +138,7 @@ func (em *ErrorMiddleware) logAndMaskError(err error) ungerr.AppError {
 }
 
 // handlePanic recovers from panics and converts them to structured errors
-func (em *ErrorMiddleware) handlePanic(r interface{}, ctx *gin.Context) {
+func (em *errorMiddleware) handlePanic(r interface{}, ctx *gin.Context) {
 	// Log the panic with full stack trace
 	em.logger.Error("PANIC RECOVERED in handler")
 	em.logger.Errorf("Request: %s %s", ctx.Request.Method, ctx.Request.URL.Path)
