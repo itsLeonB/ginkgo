@@ -15,14 +15,14 @@ func TestMiddlewareProvider_NewLoggingMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name         string
-		method       string
-		path         string
-		query        string
-		statusCode   int
-		hasError     bool
-		errorMsg     string
-		setupMock    func(*MockLogger)
+		name       string
+		method     string
+		path       string
+		query      string
+		statusCode int
+		hasError   bool
+		errorMsg   string
+		setupMock  func(*MockLogger)
 	}{
 		{
 			name:       "successful GET request",
@@ -93,7 +93,7 @@ func TestMiddlewareProvider_NewLoggingMiddleware(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			ctx, engine := gin.CreateTestContext(w)
-			
+
 			url := tt.path
 			if tt.query != "" {
 				url += "?" + tt.query
@@ -105,7 +105,7 @@ func TestMiddlewareProvider_NewLoggingMiddleware(t *testing.T) {
 			engine.Any("/*path", func(c *gin.Context) {
 				c.Status(tt.statusCode)
 				if tt.hasError {
-					c.Error(errors.New(tt.errorMsg))
+					_ = c.Error(errors.New(tt.errorMsg))
 				}
 			})
 
