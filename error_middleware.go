@@ -29,11 +29,11 @@ func newErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
 	middleware := &errorMiddleware{
 		logger: logger,
 	}
-	return middleware.Handle
+	return middleware.handle
 }
 
 // Handle is the main middleware function that processes errors and panics
-func (em *errorMiddleware) Handle(ctx *gin.Context) {
+func (em *errorMiddleware) handle(ctx *gin.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			em.handlePanic(r, ctx)
