@@ -86,3 +86,13 @@ func GetAndParseFromContext[T any](ctx *gin.Context, key string) (T, error) {
 
 	return ezutil.Parse[T](asserted)
 }
+
+func WrapHandler(handler func(ctx *gin.Context) (int, string, any, error)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if statusCode, message, response, err := handler(ctx); err != nil {
+			_ = ctx.Error(err)
+		} else {
+			ctx.JSON(statusCode, NewResponse(message).WithData(response))
+		}
+	}
+}
