@@ -28,7 +28,7 @@ func (p Pagination) IsZero() bool {
 // JSONResponse represents a standardized HTTP JSON response structure.
 // It can include a message, data payload, error information, and pagination metadata.
 type JSONResponse struct {
-	Message    string     `json:"message"`
+	Message    string     `json:"message,omitzero"`
 	Data       any        `json:"data,omitzero"`
 	Errors     error      `json:"errors,omitempty"`
 	Pagination Pagination `json:"pagination,omitzero"`

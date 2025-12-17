@@ -54,6 +54,14 @@ func BindRequest[T any](ctx *gin.Context, bindType binding.Binding) (T, error) {
 	return zero, nil
 }
 
+func BindJSON[T any](ctx *gin.Context) (T, error) {
+	var zero T
+	if err := ctx.ShouldBindJSON(&zero); err != nil {
+		return zero, eris.Wrap(err, "failed to bind JSON request")
+	}
+	return zero, nil
+}
+
 // GetFromContext retrieves a value from the Gin context and type-asserts it to type T.
 // Returns the typed value or an error if the key does not exist or type assertion fails.
 // Useful for retrieving typed data stored in context by middleware.
@@ -93,6 +101,16 @@ func WrapHandler(handler func(ctx *gin.Context) (int, string, any, error)) gin.H
 			_ = ctx.Error(err)
 		} else {
 			ctx.JSON(statusCode, NewResponse(message).WithData(response))
+		}
+	}
+}
+
+func Handler(successCode int, handler func(ctx *gin.Context) (any, error)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if resp, err := handler(ctx); err == nil {
+			ctx.JSON(successCode, JSONResponse{Data: resp})
+		} else {
+			_ = ctx.Error(err)
 		}
 	}
 }
