@@ -9,6 +9,7 @@ require (
 	github.com/itsLeonB/ezutil/v2 v2.1.0
 	github.com/itsLeonB/ungerr v0.2.0-pre2
 	github.com/rotisserie/eris v0.5.4
+	golang.org/x/time v0.14.0
 )
 
 require (

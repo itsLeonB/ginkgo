@@ -8,6 +8,7 @@ import (
 	"github.com/itsLeonB/ezutil/v2"
 	"github.com/itsLeonB/ginkgo/pkg/middleware"
 	"github.com/itsLeonB/ginkgo/pkg/server"
+	"golang.org/x/time/rate"
 )
 
 func setup() *server.Http {
@@ -18,6 +19,7 @@ func setup() *server.Http {
 	mp := middleware.NewMiddlewareProvider(logger)
 
 	r.Use(mp.NewErrorMiddleware())
+	r.Use(mp.NewRateLimitMiddleware(rate.Every(time.Second), 5))
 
 	r.GET("/success", handleSuccess())
 	r.GET("/error", handleError())
