@@ -5,7 +5,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/itsLeonB/ezutil/v2"
 	"github.com/itsLeonB/ginkgo/pkg/response"
-	"github.com/rotisserie/eris"
+	"github.com/itsLeonB/ungerr"
 )
 
 // GetPathParam extracts and parses a path parameter from the Gin context.
@@ -36,7 +36,7 @@ func GetRequiredPathParam[T any](ctx *gin.Context, key string) (T, error) {
 
 	paramValue, exists := ctx.Params.Get(key)
 	if !exists {
-		return zero, eris.Errorf("missing path param: %s", key)
+		return zero, ungerr.Unknownf("missing path param: %s", key)
 	}
 
 	return ezutil.Parse[T](paramValue)
@@ -49,7 +49,7 @@ func BindRequest[T any](ctx *gin.Context, bindType binding.Binding) (T, error) {
 	var zero T
 
 	if err := ctx.ShouldBindWith(&zero, bindType); err != nil {
-		return zero, eris.Wrapf(err, "failed to bind request with type %s", bindType.Name())
+		return zero, ungerr.Wrapf(err, "failed to bind request with type %s", bindType.Name())
 	}
 
 	return zero, nil
@@ -58,7 +58,7 @@ func BindRequest[T any](ctx *gin.Context, bindType binding.Binding) (T, error) {
 func BindJSON[T any](ctx *gin.Context) (T, error) {
 	var zero T
 	if err := ctx.ShouldBindJSON(&zero); err != nil {
-		return zero, eris.Wrap(err, "failed to bind JSON request")
+		return zero, ungerr.Wrap(err, "failed to bind JSON request")
 	}
 	return zero, nil
 }
@@ -71,12 +71,12 @@ func GetFromContext[T any](ctx *gin.Context, key string) (T, error) {
 
 	val, exists := ctx.Get(key)
 	if !exists {
-		return zero, eris.Errorf("value with key %s not found in context", key)
+		return zero, ungerr.Unknownf("value with key %s not found in context", key)
 	}
 
 	asserted, ok := val.(T)
 	if !ok {
-		return zero, eris.Errorf("error asserting value %v as type %T", val, zero)
+		return zero, ungerr.Unknownf("error asserting value %v as type %T", val, zero)
 	}
 
 	return asserted, nil

@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/itsLeonB/ungerr"
-	"github.com/rotisserie/eris"
 )
 
 // NewPermissionMiddleware creates a permission-checking middleware for Gin.
@@ -21,14 +20,14 @@ func (mp *MiddlewareProvider) NewPermissionMiddleware(
 	return func(ctx *gin.Context) {
 		role := ctx.GetString(roleContextKey)
 		if role == "" {
-			_ = ctx.Error(eris.Errorf("role not found in context or invalid type"))
+			_ = ctx.Error(ungerr.Unknownf("role not found in context or invalid type"))
 			ctx.Abort()
 			return
 		}
 
 		permissions, ok := permissionMap[role]
 		if !ok {
-			_ = ctx.Error(eris.Errorf("unknown role: %s", role))
+			_ = ctx.Error(ungerr.Unknownf("unknown role: %s", role))
 			ctx.Abort()
 			return
 		}

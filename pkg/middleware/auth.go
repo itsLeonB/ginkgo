@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/itsLeonB/ungerr"
-	"github.com/rotisserie/eris"
 )
 
 // NewAuthMiddleware creates an authentication middleware for Gin.
@@ -25,7 +24,7 @@ func (mp *MiddlewareProvider) NewAuthMiddleware(
 	return func(ctx *gin.Context) {
 		token, errMsg, err := extractToken(ctx, authStrategy)
 		if err != nil {
-			_ = ctx.Error(eris.Wrap(err, "error extracting token"))
+			_ = ctx.Error(ungerr.Wrap(err, "error extracting token"))
 			ctx.Abort()
 			return
 		}
@@ -61,7 +60,7 @@ func extractToken(ctx *gin.Context, authStrategy string) (string, string, error)
 		token, errMsg := extractBearerToken(ctx)
 		return token, errMsg, nil
 	default:
-		return "", "", eris.Errorf("unsupported auth strategy: %s", authStrategy)
+		return "", "", ungerr.Unknownf("unsupported auth strategy: %s", authStrategy)
 	}
 }
 
