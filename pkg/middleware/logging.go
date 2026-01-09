@@ -1,4 +1,4 @@
-package ginkgo
+package middleware
 
 import (
 	"net/http"

@@ -8,6 +8,12 @@ if ! make lint; then
     exit 1
 fi
 
+echo "\n=== Running build ==="
+if ! make build; then
+    echo "❌ Build failed! Please fix the issues before pushing."
+    exit 1
+fi
+
 echo "\n=== Running tests ==="
 if ! make test; then
     echo "❌ Tests failed! Please fix the test issues before pushing."

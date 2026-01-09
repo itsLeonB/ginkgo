@@ -1,4 +1,4 @@
-package ginkgo
+package middleware
 
 import (
 	"encoding/json"
@@ -11,13 +11,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/itsLeonB/ezutil/v2"
+	"github.com/itsLeonB/ginkgo/pkg/response"
 	"github.com/itsLeonB/ungerr"
-	"github.com/rotisserie/eris"
 )
 
 // errorMiddleware handles errors and panics in Gin handlers
 type errorMiddleware struct {
 	logger ezutil.Logger
+}
+
+type errorObject struct {
+	Code   string `json:"code"`
+	Detail any    `json:"detail"`
+}
+
+func (eo errorObject) Error() string {
+	return fmt.Sprintf("%s: %s", eo.Code, eo.Detail)
 }
 
 // NewErrorMiddleware creates an error handling middleware for Gin.
@@ -32,6 +41,13 @@ func newErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
 	return middleware.handle
 }
 
+func appErrorToErrorObject(appError ungerr.AppError) any {
+	return response.NewErrorResponse(errorObject{
+		Code:   appError.Error(),
+		Detail: appError.Details(),
+	})
+}
+
 // Handle is the main middleware function that processes errors and panics
 func (em *errorMiddleware) handle(ctx *gin.Context) {
 	defer func() {
@@ -44,29 +60,32 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 	if err := ctx.Errors.Last(); err != nil {
 		// Check if it's already an AppError
-		if appErr, ok := err.Err.(ungerr.AppError); ok {
-			ctx.AbortWithStatusJSON(appErr.HttpStatus(), NewErrorResponse(appErr))
+		if appError, ok := err.Err.(ungerr.AppError); ok {
+			ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 			return
 		}
 
 		// Handle other errors
 		appError := em.constructAppError(err, ctx)
-		ctx.AbortWithStatusJSON(appError.HttpStatus(), NewErrorResponse(appError))
+		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 	}
 }
 
 // constructAppError converts various error types into AppError
 func (em *errorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
-	// First, try to unwrap with eris to get the original error
-	originalErr := eris.Unwrap(err.Err)
-	if originalErr == nil {
-		// No eris wrapping found - this means the error wasn't properly wrapped
-		// Log the location where the error was added to Gin context
-		return em.logUnwrappedError(err, ctx)
+	unknownErr, ok := err.Err.(*ungerr.UnknownError)
+	if ok {
+		if originalErr := ungerr.Unwrap(err.Err); originalErr != nil {
+			em.logger.Errorf("unhandled error of type %T: %s", originalErr, err.Err.Error())
+			return ungerr.InternalServerError()
+		}
+
+		em.logger.Error("unexpected error:", unknownErr.Error())
+		return ungerr.InternalServerError()
 	}
 
 	// Handle known error types from eris-wrapped errors
-	switch originalErr := originalErr.(type) {
+	switch originalErr := err.Err.(type) {
 	case validator.ValidationErrors:
 		var errors []string
 		for _, e := range originalErr {
@@ -95,106 +114,85 @@ func (em *errorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) u
 			return ungerr.BadRequestError("connection error")
 		}
 
-		// This is an eris-wrapped error but not a known type
-		// Log with full stack trace and mask from user
-		return em.logAndMaskError(err.Err)
+		return em.logUnwrappedError(err, ctx)
 	}
 }
 
 // logUnwrappedError handles errors that weren't properly wrapped with eris
 func (em *errorMiddleware) logUnwrappedError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
 	// This function helps you identify where errors are being added without proper wrapping
-	em.logger.Error("UNWRAPPED ERROR DETECTED - Please add eris.Wrap() or return ungerr.AppError")
-	em.logger.Errorf("Error type: %T", err.Err)
-	em.logger.Errorf("Error message: %s", err.Err.Error())
-	em.logger.Errorf("Request: %s %s", ctx.Request.Method, ctx.Request.URL.Path)
-	em.logger.Errorf("Handler: %s", ctx.HandlerName())
-
-	// Try to extract some context about where this might have come from
-	if ctx.Request != nil {
-		em.logger.Errorf("User-Agent: %s", ctx.Request.UserAgent())
-		em.logger.Errorf("Remote-Addr: %s", ctx.Request.RemoteAddr)
-	}
-
-	// Log the Gin error metadata which might contain handler info
-	if err.Meta != nil {
-		em.logger.Errorf("Error metadata: %+v", err.Meta)
-	}
-
-	em.logger.Error("Stack trace from Gin error location:")
-	em.logger.Errorf("%+v", err.Err)
+	em.logger.Errorf(
+		"UNWRAPPED ERROR DETECTED - Please wrap with ungerr.Wrap() or return ungerr.AppError\n"+
+			"Error type: %T\n"+
+			"Error message: %s\n"+
+			"Request: %s %s\n"+
+			"Handler: %s\n"+
+			"Details: %+v",
+		err.Err,
+		err.Err.Error(),
+		ctx.Request.Method,
+		ctx.Request.URL.Path,
+		ctx.HandlerName(),
+		err.Err,
+	)
 
 	// Return a masked error to the user
 	return ungerr.InternalServerError()
 }
 
-// logAndMaskError handles eris-wrapped errors that need to be masked from users
-func (em *errorMiddleware) logAndMaskError(err error) ungerr.AppError {
-	em.logger.Errorf("Unhandled eris-wrapped error of type: %T", err)
-	em.logger.Error("Full stack trace:")
-	em.logger.Error(eris.ToString(err, true))
-
-	return ungerr.InternalServerError()
-}
-
 // handlePanic recovers from panics and converts them to structured errors
 func (em *errorMiddleware) handlePanic(r interface{}, ctx *gin.Context) {
-	// Log the panic with full stack trace
-	em.logger.Error("PANIC RECOVERED in handler")
-	em.logger.Errorf("Request: %s %s", ctx.Request.Method, ctx.Request.URL.Path)
-	em.logger.Errorf("Handler: %s", ctx.HandlerName())
-	em.logger.Errorf("Panic value: %v", r)
-	em.logger.Errorf("Panic type: %T", r)
-
-	if ctx.Request != nil {
-		em.logger.Errorf("User-Agent: %s", ctx.Request.UserAgent())
-		em.logger.Errorf("Remote-Addr: %s", ctx.Request.RemoteAddr)
-		if ctx.Request.Body != nil {
-			// Don't log the full body, just indicate if it exists
-			em.logger.Error("Request has body: true")
-		}
-	}
-
-	// Print stack trace
-	em.logger.Error("Stack trace:")
-	em.logger.Error(string(debug.Stack()))
-
-	// Try to convert panic to a meaningful error
+	// Build panic analysis
+	var analysisBuilder strings.Builder
 	switch panicValue := r.(type) {
 	case string:
-		// Handle string panics (often from panic("message"))
 		if strings.Contains(panicValue, "index out of range") ||
 			strings.Contains(panicValue, "slice bounds out of range") {
-			em.logger.Error("Array/slice bounds panic detected")
+			analysisBuilder.WriteString("Array/slice bounds panic detected")
 		} else if strings.Contains(panicValue, "nil pointer dereference") {
-			em.logger.Error("Nil pointer dereference panic detected")
+			analysisBuilder.WriteString("Nil pointer dereference panic detected")
 		} else {
-			em.logger.Errorf("String panic: %s", panicValue)
+			fmt.Fprintf(&analysisBuilder, "String panic: %s", panicValue)
 		}
 
 	case runtime.Error:
-		// Handle runtime errors (nil pointer, index out of bounds, etc.)
-		em.logger.Errorf("Runtime error panic: %v", panicValue)
+		fmt.Fprintf(&analysisBuilder, "Runtime error panic: %v", panicValue)
 		switch panicValue.Error() {
 		case "runtime error: invalid memory address or nil pointer dereference":
-			em.logger.Error("Nil pointer dereference detected")
+			analysisBuilder.WriteString(" - Nil pointer dereference detected")
 		case "runtime error: index out of range":
-			em.logger.Error("Index out of range detected")
+			analysisBuilder.WriteString(" - Index out of range detected")
 		case "runtime error: slice bounds out of range":
-			em.logger.Error("Slice bounds out of range detected")
+			analysisBuilder.WriteString(" - Slice bounds out of range detected")
 		}
 
 	default:
-		// Unknown panic type
-		em.logger.Errorf("Unknown panic type: %T, value: %v", r, r)
+		fmt.Fprintf(&analysisBuilder, "Unknown panic type: %T, value: %v", r, r)
 	}
+
+	// Log everything in one call with stack trace
+	em.logger.Errorf(
+		"PANIC RECOVERED in handler\n"+
+			"Request: %s %s\n"+
+			"Handler: %s\n"+
+			"Panic value: %v\n"+
+			"Panic type: %T\n"+
+			"Analysis: %s\n"+
+			"Stack trace:\n%s",
+		ctx.Request.Method,
+		ctx.Request.URL.Path,
+		ctx.HandlerName(),
+		r,
+		r,
+		analysisBuilder.String(),
+		string(debug.Stack()),
+	)
 
 	// If the response hasn't been written yet, send error response
 	if !ctx.Writer.Written() {
 		appError := ungerr.InternalServerError()
-		ctx.AbortWithStatusJSON(appError.HttpStatus(), NewErrorResponse(appError))
+		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 	} else {
-		// Response was already partially written, we can't send JSON anymore
 		em.logger.Errorf("Response already written, cannot send error JSON. Status: %d", ctx.Writer.Status())
 	}
 }

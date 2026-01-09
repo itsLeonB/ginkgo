@@ -1,4 +1,4 @@
-package ginkgo
+package server
 
 import (
 	"context"
@@ -12,14 +12,14 @@ import (
 	"github.com/itsLeonB/ezutil/v2"
 )
 
-type HttpServer struct {
+type Http struct {
 	srv          *http.Server
 	timeout      time.Duration
 	logger       ezutil.Logger
 	shutdownFunc func() error
 }
 
-func NewHttpServer(srv *http.Server, timeout time.Duration, logger ezutil.Logger, shutdownFunc func() error) *HttpServer {
+func New(srv *http.Server, timeout time.Duration, logger ezutil.Logger, shutdownFunc func() error) *Http {
 	if logger == nil {
 		log.Fatal("logger cannot be nil")
 	}
@@ -33,11 +33,11 @@ func NewHttpServer(srv *http.Server, timeout time.Duration, logger ezutil.Logger
 		logger.Warn("shutdownFunc is nil, continuing...")
 	}
 
-	return &HttpServer{srv, timeout, logger, shutdownFunc}
+	return &Http{srv, timeout, logger, shutdownFunc}
 }
 
 // ServeGracefully starts the HTTP server and handles graceful shutdown
-func (hs *HttpServer) ServeGracefully() {
+func (hs *Http) ServeGracefully() {
 	go func() {
 		hs.logger.Infof("starting server on: %s", hs.srv.Addr)
 		if err := hs.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
