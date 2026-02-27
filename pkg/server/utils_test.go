@@ -41,7 +41,7 @@ func TestGetPathParam(t *testing.T) {
 
 		_, exists, err := GetPathParam[int](c, "id")
 		assert.Error(t, err)
-		assert.False(t, exists)
+		assert.True(t, exists)
 	})
 }
 

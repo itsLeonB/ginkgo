@@ -42,7 +42,7 @@ func NewResponse(data any) JSONResponse {
 }
 
 // NewErrorResponse creates a JSONResponse for error cases.
-// It sets the message to the error text and populates the Errors field.
+// It populates the Errors field with the provided errors.
 func NewErrorResponse(err ...error) JSONResponse {
 	return JSONResponse{
 		Errors: err,
