@@ -14,7 +14,6 @@ import (
 	"github.com/itsLeonB/ungerr"
 )
 
-// errorMiddleware handles errors and panics in Gin handlers
 type errorMiddleware struct {
 	logger ezutil.Logger
 }
@@ -34,10 +33,8 @@ func (eo errorObject) Error() string {
 // This converts them into AppError or validation errors, and sends a structured JSON response
 // with the appropriate HTTP status code. Returns a Gin HandlerFunc.
 func newErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
-	middleware := &errorMiddleware{
-		logger: logger,
-	}
-	return middleware.handle
+	m := &errorMiddleware{logger: logger}
+	return m.handle
 }
 
 func appErrorToErrorObject(appError ungerr.AppError) any {
@@ -47,7 +44,6 @@ func appErrorToErrorObject(appError ungerr.AppError) any {
 	})
 }
 
-// Handle is the main middleware function that processes errors and panics
 func (em *errorMiddleware) handle(ctx *gin.Context) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -57,76 +53,77 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 	ctx.Next()
 
-	if err := ctx.Errors.Last(); err != nil {
-		// Check if it's already an AppError
-		if appError, ok := err.Err.(ungerr.AppError); ok {
-			em.logger.WithContext(ctx).WithError(appError).Warn("application error")
-			ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
-			return
-		}
-
-		// Handle other errors
-		appError := em.constructAppError(err, ctx)
-		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
+	err := ctx.Errors.Last()
+	if err == nil {
+		return
 	}
-}
 
-// constructAppError converts various error types into AppError
-func (em *errorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
 	logCtx := em.logger.WithContext(ctx)
 
-	unknownErr, ok := err.Err.(*ungerr.UnknownError)
-	if ok {
-		logCtx = logCtx.WithError(unknownErr)
-		if originalErr := ungerr.Unwrap(err.Err); originalErr != nil {
-			logCtx.Error("unhandled error")
-			return ungerr.InternalServerError()
-		}
-
-		logCtx.Error("unexpected error")
-		return ungerr.InternalServerError()
+	// Already a well-typed AppError — warn and respond.
+	if appError, ok := err.Err.(ungerr.AppError); ok {
+		logCtx.WithError(appError).Warn("application error")
+		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
+		return
 	}
 
-	// Handle known error types from eris-wrapped errors
-	switch originalErr := err.Err.(type) {
-	case validator.ValidationErrors:
-		var errors []string
-		for _, e := range originalErr {
-			errors = append(errors, e.Error())
+	// UnknownError has two distinct log messages depending on whether a cause is present.
+	if unknownErr, ok := err.Err.(*ungerr.UnknownError); ok {
+		logCtx = logCtx.WithError(unknownErr)
+		if ungerr.Unwrap(err.Err) != nil {
+			logCtx.Error("unhandled error")
+		} else {
+			logCtx.Error("unexpected error")
 		}
-		return ungerr.ValidationError(errors)
+		appError := ungerr.InternalServerError()
+		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
+		return
+	}
+
+	// Try to map remaining known error types (validation, JSON, network, etc.).
+	appError := em.identifyKnownError(err)
+	if appError != nil {
+		logCtx.WithError(appError).Warn("application error")
+	} else {
+		// Completely unrecognised error — developer forgot to wrap with ungerr.Wrap().
+		logCtx.
+			WithError(err.Err).
+			WithField("handler", ctx.HandlerName()).
+			Error("unwrapped error detected — wrap with ungerr.Wrap()")
+		appError = ungerr.InternalServerError()
+	}
+
+	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
+}
+
+func (em *errorMiddleware) identifyKnownError(err *gin.Error) ungerr.AppError {
+	switch e := err.Err.(type) {
+	case validator.ValidationErrors:
+		msgs := make([]string, len(e))
+		for i, ve := range e {
+			msgs[i] = ve.Error()
+		}
+		return ungerr.ValidationError(msgs)
 
 	case *json.SyntaxError:
 		return ungerr.BadRequestError("invalid json")
 
 	case *json.UnmarshalTypeError:
-		return ungerr.BadRequestError(fmt.Sprintf("invalid value for field %s", originalErr.Field))
+		return ungerr.BadRequestError(fmt.Sprintf("invalid value for field %s", e.Field))
 
 	default:
-		// Handle common error patterns
-		errStr := originalErr.Error()
-
-		// EOF error from json package is unexported
-		if originalErr == io.EOF || errStr == "EOF" {
+		errStr := e.Error()
+		if e == io.EOF || errStr == "EOF" {
 			return ungerr.BadRequestError("missing request body")
 		}
-
-		// Check for network-related errors that might be client errors
 		if strings.Contains(errStr, "connection reset by peer") ||
 			strings.Contains(errStr, "broken pipe") {
 			return ungerr.BadRequestError("connection error")
 		}
-
-		logCtx.
-			WithError(originalErr).
-			WithField("handler", ctx.HandlerName()).
-			Error("unwrapped error detected — wrap with ungerr.Wrap()")
-
-		return ungerr.InternalServerError()
+		return nil
 	}
 }
 
-// handlePanic recovers from panics and converts them to structured errors
 func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
 	em.logger.
 		WithContext(ctx.Request.Context()).
@@ -138,13 +135,14 @@ func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
 		}).
 		Error("panic recovered")
 
-	if !ctx.Writer.Written() {
-		appError := ungerr.InternalServerError()
-		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
-	} else {
+	if ctx.Writer.Written() {
 		em.logger.
 			WithContext(ctx.Request.Context()).
 			WithField("http.status_code", ctx.Writer.Status()).
 			Error("response already written after panic, could not send error JSON")
+		return
 	}
+
+	appError := ungerr.InternalServerError()
+	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 }
