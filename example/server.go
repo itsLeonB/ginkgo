@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/itsLeonB/ezutil/v2"
+	"github.com/itsLeonB/ezutil/v2/simple"
 	"github.com/itsLeonB/ginkgo/pkg/middleware"
 	"github.com/itsLeonB/ginkgo/pkg/server"
 	"golang.org/x/time/rate"
@@ -13,7 +13,7 @@ import (
 
 func setup() *server.Http {
 	r := gin.New()
-	logger := ezutil.NewSimpleLogger("ginkgo-example", true, 0)
+	logger := simple.NewLogger("ginkgo-example", true, 0)
 	timeout := 5 * time.Second
 
 	mp := middleware.NewMiddlewareProvider(logger)

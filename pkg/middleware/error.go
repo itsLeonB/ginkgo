@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"runtime"
 	"runtime/debug"
 	"strings"
 
@@ -73,14 +72,17 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 // constructAppError converts various error types into AppError
 func (em *errorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
+	logCtx := em.logger.WithContext(ctx)
+
 	unknownErr, ok := err.Err.(*ungerr.UnknownError)
 	if ok {
+		logCtx = logCtx.WithError(unknownErr)
 		if originalErr := ungerr.Unwrap(err.Err); originalErr != nil {
-			em.logger.Errorf("unhandled error of type %T: %s", originalErr, err.Err.Error())
+			logCtx.Error("unhandled error")
 			return ungerr.InternalServerError()
 		}
 
-		em.logger.Error("unexpected error:", unknownErr.Error())
+		logCtx.Error("unexpected error")
 		return ungerr.InternalServerError()
 	}
 
@@ -114,85 +116,34 @@ func (em *errorMiddleware) constructAppError(err *gin.Error, ctx *gin.Context) u
 			return ungerr.BadRequestError("connection error")
 		}
 
-		return em.logUnwrappedError(err, ctx)
+		logCtx.
+			WithError(originalErr).
+			WithField("handler", ctx.HandlerName()).
+			Error("unwrapped error detected — wrap with ungerr.Wrap()")
+
+		return ungerr.InternalServerError()
 	}
-}
-
-// logUnwrappedError handles errors that weren't properly wrapped with eris
-func (em *errorMiddleware) logUnwrappedError(err *gin.Error, ctx *gin.Context) ungerr.AppError {
-	// This function helps you identify where errors are being added without proper wrapping
-	em.logger.Errorf(
-		"UNWRAPPED ERROR DETECTED - Please wrap with ungerr.Wrap() or return ungerr.AppError\n"+
-			"Error type: %T\n"+
-			"Error message: %s\n"+
-			"Request: %s %s\n"+
-			"Handler: %s\n"+
-			"Details: %+v",
-		err.Err,
-		err.Err.Error(),
-		ctx.Request.Method,
-		ctx.Request.URL.Path,
-		ctx.HandlerName(),
-		err.Err,
-	)
-
-	// Return a masked error to the user
-	return ungerr.InternalServerError()
 }
 
 // handlePanic recovers from panics and converts them to structured errors
-func (em *errorMiddleware) handlePanic(r interface{}, ctx *gin.Context) {
-	// Build panic analysis
-	var analysisBuilder strings.Builder
-	switch panicValue := r.(type) {
-	case string:
-		if strings.Contains(panicValue, "index out of range") ||
-			strings.Contains(panicValue, "slice bounds out of range") {
-			analysisBuilder.WriteString("Array/slice bounds panic detected")
-		} else if strings.Contains(panicValue, "nil pointer dereference") {
-			analysisBuilder.WriteString("Nil pointer dereference panic detected")
-		} else {
-			fmt.Fprintf(&analysisBuilder, "String panic: %s", panicValue)
-		}
+func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
+	em.logger.
+		WithContext(ctx.Request.Context()).
+		WithFields(map[string]any{
+			"handler":     ctx.HandlerName(),
+			"panic.type":  fmt.Sprintf("%T", r),
+			"panic.value": fmt.Sprintf("%v", r),
+			"stack_trace": string(debug.Stack()),
+		}).
+		Error("panic recovered")
 
-	case runtime.Error:
-		fmt.Fprintf(&analysisBuilder, "Runtime error panic: %v", panicValue)
-		switch panicValue.Error() {
-		case "runtime error: invalid memory address or nil pointer dereference":
-			analysisBuilder.WriteString(" - Nil pointer dereference detected")
-		case "runtime error: index out of range":
-			analysisBuilder.WriteString(" - Index out of range detected")
-		case "runtime error: slice bounds out of range":
-			analysisBuilder.WriteString(" - Slice bounds out of range detected")
-		}
-
-	default:
-		fmt.Fprintf(&analysisBuilder, "Unknown panic type: %T, value: %v", r, r)
-	}
-
-	// Log everything in one call with stack trace
-	em.logger.Errorf(
-		"PANIC RECOVERED in handler\n"+
-			"Request: %s %s\n"+
-			"Handler: %s\n"+
-			"Panic value: %v\n"+
-			"Panic type: %T\n"+
-			"Analysis: %s\n"+
-			"Stack trace:\n%s",
-		ctx.Request.Method,
-		ctx.Request.URL.Path,
-		ctx.HandlerName(),
-		r,
-		r,
-		analysisBuilder.String(),
-		string(debug.Stack()),
-	)
-
-	// If the response hasn't been written yet, send error response
 	if !ctx.Writer.Written() {
 		appError := ungerr.InternalServerError()
 		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 	} else {
-		em.logger.Errorf("Response already written, cannot send error JSON. Status: %d", ctx.Writer.Status())
+		em.logger.
+			WithContext(ctx.Request.Context()).
+			WithField("http.status_code", ctx.Writer.Status()).
+			Error("response already written after panic, could not send error JSON")
 	}
 }
