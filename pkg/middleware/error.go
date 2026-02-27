@@ -60,6 +60,7 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 	if err := ctx.Errors.Last(); err != nil {
 		// Check if it's already an AppError
 		if appError, ok := err.Err.(ungerr.AppError); ok {
+			em.logger.WithContext(ctx).WithError(appError).Warn("application error")
 			ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 			return
 		}
