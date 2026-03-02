@@ -53,25 +53,31 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 	ctx.Next()
 
-	err := ctx.Errors.Last()
-	if err == nil {
+	ginErr := ctx.Errors.Last()
+	if ginErr == nil {
 		return
 	}
 
+	err := ginErr.Err
 	logCtx := em.logger.WithContext(ctx)
 
 	// Already a well-typed AppError — warn and respond.
-	if appError, ok := err.Err.(ungerr.AppError); ok {
+	if appError, ok := err.(ungerr.AppError); ok {
 		logCtx.WithError(appError).Warn("application error")
 		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 		return
 	}
 
 	// UnknownError has two distinct log messages depending on whether a cause is present.
-	if unknownErr, ok := err.Err.(*ungerr.UnknownError); ok {
+	if unknownErr, ok := err.(*ungerr.UnknownError); ok {
 		logCtx = logCtx.WithError(unknownErr)
-		if ungerr.Unwrap(err.Err) != nil {
-			logCtx.Error("unhandled error")
+		if cause := ungerr.Unwrap(err); cause != nil {
+			if appError := em.identifyKnownError(cause); appError != nil {
+				logCtx.WithError(appError).Warn("identified wrapped error")
+				ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
+				return
+			}
+			logCtx.Error("unhandled error") // only if truly unidentifiable
 		} else {
 			logCtx.Error("unexpected error")
 		}
@@ -87,7 +93,7 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 	} else {
 		// Completely unrecognised error — developer forgot to wrap with ungerr.Wrap().
 		logCtx.
-			WithError(err.Err).
+			WithError(err).
 			WithField("handler", ctx.HandlerName()).
 			Error("unwrapped error detected — wrap with ungerr.Wrap()")
 		appError = ungerr.InternalServerError()
@@ -96,8 +102,8 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 }
 
-func (em *errorMiddleware) identifyKnownError(err *gin.Error) ungerr.AppError {
-	switch e := err.Err.(type) {
+func (em *errorMiddleware) identifyKnownError(err error) ungerr.AppError {
+	switch e := err.(type) {
 	case validator.ValidationErrors:
 		msgs := make([]string, len(e))
 		for i, ve := range e {
