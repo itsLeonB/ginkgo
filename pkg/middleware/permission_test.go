@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/itsLeonB/ezutil/v2"
+	"github.com/itsLeonB/ezutil/v2/simple"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewPermissionMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	logger := ezutil.NewSimpleLogger("test", true, 0)
+	logger := simple.NewLogger("test", true, 0)
 	mp := NewMiddlewareProvider(logger)
 
 	permissionMap := map[string][]string{

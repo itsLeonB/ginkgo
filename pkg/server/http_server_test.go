@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/itsLeonB/ezutil/v2"
+	"github.com/itsLeonB/ezutil/v2/simple"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNew(t *testing.T) {
-	logger := ezutil.NewSimpleLogger("test", true, 0)
+	logger := simple.NewLogger("test", true, 0)
 
 	t.Run("success", func(t *testing.T) {
 		srv := &http.Server{}

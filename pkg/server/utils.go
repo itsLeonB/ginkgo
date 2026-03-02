@@ -22,7 +22,7 @@ func GetPathParam[T any](ctx *gin.Context, key string) (T, bool, error) {
 
 	parsedValue, err := ezutil.Parse[T](paramValue)
 	if err != nil {
-		return zero, false, err
+		return zero, true, err
 	}
 
 	return parsedValue, true, nil

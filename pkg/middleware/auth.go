@@ -9,7 +9,7 @@ import (
 )
 
 // NewAuthMiddleware creates an authentication middleware for Gin.
-// It extracts a token using the given strategy (e.g., "header" or "cookie") via internal.ExtractToken,
+// It extracts a token using the given strategy (e.g., "Bearer") via extractToken,
 // calls tokenCheckFunc to validate the token and retrieve user data,
 // stores user data in the Gin context, and aborts the request on errors.
 // Returns a Gin HandlerFunc for authentication handling.

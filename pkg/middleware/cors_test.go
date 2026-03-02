@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/gin-contrib/cors"
-	"github.com/itsLeonB/ezutil/v2"
+	"github.com/itsLeonB/ezutil/v2/simple"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewCorsMiddleware(t *testing.T) {
-	logger := ezutil.NewSimpleLogger("test", true, 0)
+	logger := simple.NewLogger("test", true, 0)
 	mp := NewMiddlewareProvider(logger)
 
 	t.Run("nil config uses default", func(t *testing.T) {
