@@ -13,6 +13,7 @@ import (
 	"github.com/itsLeonB/ginkgo/pkg/response"
 	"github.com/itsLeonB/ungerr"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -54,7 +55,7 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			em.handlePanic(r, ctx)
+			em.handlePanic(r, ctx, span)
 		}
 	}()
 
@@ -70,6 +71,8 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 	// Already a well-typed AppError — warn and respond.
 	if appError, ok := err.(ungerr.AppError); ok {
+		span.RecordError(appError)
+		span.SetStatus(codes.Error, appError.Error())
 		logCtx.WithError(appError).Warn("application error")
 		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 		return
@@ -79,13 +82,18 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 	if unknownErr, ok := err.(*ungerr.UnknownError); ok {
 		logCtx = logCtx.WithError(unknownErr)
 		if cause := ungerr.Unwrap(err); cause != nil {
+			span.RecordError(cause)
+			span.SetStatus(codes.Error, cause.Error())
 			if appError := em.identifyKnownError(cause); appError != nil {
+				span.SetStatus(codes.Error, appError.Error())
 				logCtx.WithError(appError).Warn("identified wrapped error")
 				ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 				return
 			}
 			logCtx.Error("unhandled error") // only if truly unidentifiable
 		} else {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			logCtx.Error("unexpected error")
 		}
 		appError := ungerr.InternalServerError()
@@ -106,6 +114,8 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 		appError = ungerr.InternalServerError()
 	}
 
+	span.RecordError(appError)
+	span.SetStatus(codes.Error, appError.Error())
 	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 }
 
@@ -137,7 +147,7 @@ func (em *errorMiddleware) identifyKnownError(err error) ungerr.AppError {
 	}
 }
 
-func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
+func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context, span trace.Span) {
 	em.logger.
 		WithContext(ctx.Request.Context()).
 		WithFields(map[string]any{
@@ -157,5 +167,7 @@ func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
 	}
 
 	appError := ungerr.InternalServerError()
+	span.RecordError(appError)
+	span.SetStatus(codes.Error, fmt.Sprintf("panic: %v", r))
 	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 }
