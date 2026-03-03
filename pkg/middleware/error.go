@@ -12,10 +12,14 @@ import (
 	"github.com/itsLeonB/ezutil/v2"
 	"github.com/itsLeonB/ginkgo/pkg/response"
 	"github.com/itsLeonB/ungerr"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type errorMiddleware struct {
 	logger ezutil.Logger
+	tracer trace.Tracer
 }
 
 type errorObject struct {
@@ -33,7 +37,7 @@ func (eo errorObject) Error() string {
 // This converts them into AppError or validation errors, and sends a structured JSON response
 // with the appropriate HTTP status code. Returns a Gin HandlerFunc.
 func newErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
-	m := &errorMiddleware{logger: logger}
+	m := &errorMiddleware{logger: logger, tracer: otel.GetTracerProvider().Tracer(packageName)}
 	return m.handle
 }
 
@@ -45,9 +49,13 @@ func appErrorToErrorObject(appError ungerr.AppError) any {
 }
 
 func (em *errorMiddleware) handle(ctx *gin.Context) {
+	c, span := em.tracer.Start(ctx.Request.Context(), "ErrorMiddleware.handle")
+	defer span.End()
+	ctx.Request = ctx.Request.WithContext(c)
+
 	defer func() {
 		if r := recover(); r != nil {
-			em.handlePanic(r, ctx)
+			em.handlePanic(r, ctx, span)
 		}
 	}()
 
@@ -63,6 +71,8 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 
 	// Already a well-typed AppError — warn and respond.
 	if appError, ok := err.(ungerr.AppError); ok {
+		span.RecordError(appError)
+		span.SetStatus(codes.Error, "application error")
 		logCtx.WithError(appError).Warn("application error")
 		ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 		return
@@ -72,13 +82,18 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 	if unknownErr, ok := err.(*ungerr.UnknownError); ok {
 		logCtx = logCtx.WithError(unknownErr)
 		if cause := ungerr.Unwrap(err); cause != nil {
+			span.RecordError(cause)
+			span.SetStatus(codes.Error, "wrapped error")
 			if appError := em.identifyKnownError(cause); appError != nil {
+				span.SetStatus(codes.Error, "identified error")
 				logCtx.WithError(appError).Warn("identified wrapped error")
 				ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 				return
 			}
 			logCtx.Error("unhandled error") // only if truly unidentifiable
 		} else {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "unexpected error")
 			logCtx.Error("unexpected error")
 		}
 		appError := ungerr.InternalServerError()
@@ -99,6 +114,8 @@ func (em *errorMiddleware) handle(ctx *gin.Context) {
 		appError = ungerr.InternalServerError()
 	}
 
+	span.RecordError(appError)
+	span.SetStatus(codes.Error, "application error")
 	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 }
 
@@ -130,7 +147,7 @@ func (em *errorMiddleware) identifyKnownError(err error) ungerr.AppError {
 	}
 }
 
-func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
+func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context, span trace.Span) {
 	em.logger.
 		WithContext(ctx.Request.Context()).
 		WithFields(map[string]any{
@@ -141,6 +158,10 @@ func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
 		}).
 		Error("panic recovered")
 
+	appError := ungerr.InternalServerError()
+	span.RecordError(appError)
+	span.SetStatus(codes.Error, "panic recovered")
+
 	if ctx.Writer.Written() {
 		em.logger.
 			WithContext(ctx.Request.Context()).
@@ -148,7 +169,5 @@ func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context) {
 			Error("response already written after panic, could not send error JSON")
 		return
 	}
-
-	appError := ungerr.InternalServerError()
 	ctx.AbortWithStatusJSON(appError.HttpStatus(), appErrorToErrorObject(appError))
 }

@@ -85,7 +85,7 @@ if err != nil {
 
 The middleware will catch this, but it logs at `ERROR` with a message explicitly telling developers the error was not wrapped:
 
-```
+```text
 unwrapped error detected — wrap with ungerr.Wrap()
 ```
 
@@ -97,7 +97,7 @@ It will still return `500` to the client, but this is treated as a developer mis
 
 Use this to decide which tool to reach for:
 
-```
+```text
 Did something go wrong?
 │
 ├── Is it an expected client-side failure? (4xx)
