@@ -1,12 +1,14 @@
-package server
+package server_test
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/itsLeonB/ginkgo/pkg/server"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +20,7 @@ func TestGetPathParam(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{{Key: "id", Value: "123"}}
 
-		val, exists, err := GetPathParam[int](c, "id")
+		val, exists, err := server.GetPathParam[int](c, "id")
 		assert.NoError(t, err)
 		assert.True(t, exists)
 		assert.Equal(t, 123, val)
@@ -28,7 +30,7 @@ func TestGetPathParam(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		val, exists, err := GetPathParam[int](c, "id")
+		val, exists, err := server.GetPathParam[int](c, "id")
 		assert.NoError(t, err)
 		assert.False(t, exists)
 		assert.Equal(t, 0, val)
@@ -39,7 +41,7 @@ func TestGetPathParam(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{{Key: "id", Value: "abc"}}
 
-		_, exists, err := GetPathParam[int](c, "id")
+		_, exists, err := server.GetPathParam[int](c, "id")
 		assert.Error(t, err)
 		assert.True(t, exists)
 	})
@@ -53,7 +55,7 @@ func TestGetRequiredPathParam(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{{Key: "id", Value: "123"}}
 
-		val, err := GetRequiredPathParam[int](c, "id")
+		val, err := server.GetRequiredPathParam[int](c, "id")
 		assert.NoError(t, err)
 		assert.Equal(t, 123, val)
 	})
@@ -62,7 +64,7 @@ func TestGetRequiredPathParam(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		_, err := GetRequiredPathParam[int](c, "id")
+		_, err := server.GetRequiredPathParam[int](c, "id")
 		assert.Error(t, err)
 	})
 }
@@ -79,7 +81,7 @@ func TestBindJSON(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"name":"test"}`))
 
-		val, err := BindJSON[TestStruct](c)
+		val, err := server.BindJSON[TestStruct](c)
 		assert.NoError(t, err)
 		assert.Equal(t, "test", val.Name)
 	})
@@ -89,7 +91,7 @@ func TestBindJSON(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/", bytes.NewBufferString(`invalid`))
 
-		_, err := BindJSON[TestStruct](c)
+		_, err := server.BindJSON[TestStruct](c)
 		assert.Error(t, err)
 	})
 }
@@ -102,7 +104,7 @@ func TestGetFromContext(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("userID", 123)
 
-		val, err := GetFromContext[int](c, "userID")
+		val, err := server.GetFromContext[int](c, "userID")
 		assert.NoError(t, err)
 		assert.Equal(t, 123, val)
 	})
@@ -111,7 +113,7 @@ func TestGetFromContext(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		_, err := GetFromContext[int](c, "userID")
+		_, err := server.GetFromContext[int](c, "userID")
 		assert.Error(t, err)
 	})
 
@@ -120,7 +122,7 @@ func TestGetFromContext(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("userID", "123")
 
-		_, err := GetFromContext[int](c, "userID")
+		_, err := server.GetFromContext[int](c, "userID")
 		assert.Error(t, err)
 	})
 }
@@ -138,7 +140,7 @@ func TestBindRequest(t *testing.T) {
 		c.Request = httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"name":"test"}`))
 		c.Request.Header.Set("Content-Type", "application/json")
 
-		val, err := BindRequest[TestStruct](c, binding.JSON)
+		val, err := server.BindRequest[TestStruct](c, binding.JSON)
 		assert.NoError(t, err)
 		assert.Equal(t, "test", val.Name)
 	})
@@ -148,7 +150,7 @@ func TestBindRequest(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/", bytes.NewBufferString(`invalid`))
 
-		_, err := BindRequest[TestStruct](c, binding.JSON)
+		_, err := server.BindRequest[TestStruct](c, binding.JSON)
 		assert.Error(t, err)
 	})
 }
@@ -161,7 +163,7 @@ func TestGetAndParseFromContext(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("count", "42")
 
-		val, err := GetAndParseFromContext[int](c, "count")
+		val, err := server.GetAndParseFromContext[int](c, "count")
 		assert.NoError(t, err)
 		assert.Equal(t, 42, val)
 	})
@@ -170,7 +172,7 @@ func TestGetAndParseFromContext(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		_, err := GetAndParseFromContext[int](c, "count")
+		_, err := server.GetAndParseFromContext[int](c, "count")
 		assert.Error(t, err)
 	})
 
@@ -179,7 +181,7 @@ func TestGetAndParseFromContext(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Set("count", "invalid")
 
-		_, err := GetAndParseFromContext[int](c, "count")
+		_, err := server.GetAndParseFromContext[int](c, "count")
 		assert.Error(t, err)
 	})
 }
@@ -190,8 +192,9 @@ func TestHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/success", nil)
 
-		handler := Handler(200, func(ctx *gin.Context) (any, error) {
+		handler := server.Handler("TestHandler.success", 200, func(ctx *gin.Context) (any, error) {
 			return map[string]string{"message": "success"}, nil
 		})
 
@@ -202,8 +205,9 @@ func TestHandler(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/error", nil)
 
-		handler := Handler(200, func(ctx *gin.Context) (any, error) {
+		handler := server.Handler("TestHandler.error", 200, func(ctx *gin.Context) (any, error) {
 			return nil, assert.AnError
 		})
 

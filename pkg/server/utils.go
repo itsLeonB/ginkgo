@@ -6,6 +6,7 @@ import (
 	"github.com/itsLeonB/ezutil/v2"
 	"github.com/itsLeonB/ginkgo/pkg/response"
 	"github.com/itsLeonB/ungerr"
+	"go.opentelemetry.io/otel"
 )
 
 // GetPathParam extracts and parses a path parameter from the Gin context.
@@ -96,8 +97,13 @@ func GetAndParseFromContext[T any](ctx *gin.Context, key string) (T, error) {
 	return ezutil.Parse[T](asserted)
 }
 
-func Handler(successCode int, handler func(ctx *gin.Context) (any, error)) gin.HandlerFunc {
+func Handler(handlerName string, successCode int, handler func(ctx *gin.Context) (any, error)) gin.HandlerFunc {
+	tracer := otel.GetTracerProvider().Tracer(packageName)
 	return func(ctx *gin.Context) {
+		c, span := tracer.Start(ctx.Request.Context(), handlerName)
+		ctx.Request = ctx.Request.WithContext(c)
+		defer span.End()
+
 		if resp, err := handler(ctx); err == nil {
 			ctx.JSON(successCode, response.JSONResponse{Data: resp})
 		} else {

@@ -12,10 +12,13 @@ import (
 	"github.com/itsLeonB/ezutil/v2"
 	"github.com/itsLeonB/ginkgo/pkg/response"
 	"github.com/itsLeonB/ungerr"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type errorMiddleware struct {
 	logger ezutil.Logger
+	tracer trace.Tracer
 }
 
 type errorObject struct {
@@ -33,7 +36,7 @@ func (eo errorObject) Error() string {
 // This converts them into AppError or validation errors, and sends a structured JSON response
 // with the appropriate HTTP status code. Returns a Gin HandlerFunc.
 func newErrorMiddleware(logger ezutil.Logger) gin.HandlerFunc {
-	m := &errorMiddleware{logger: logger}
+	m := &errorMiddleware{logger: logger, tracer: otel.GetTracerProvider().Tracer(packageName)}
 	return m.handle
 }
 
@@ -45,6 +48,10 @@ func appErrorToErrorObject(appError ungerr.AppError) any {
 }
 
 func (em *errorMiddleware) handle(ctx *gin.Context) {
+	c, span := em.tracer.Start(ctx.Request.Context(), "ErrorMiddleware.handle")
+	defer span.End()
+	ctx.Request = ctx.Request.WithContext(c)
+
 	defer func() {
 		if r := recover(); r != nil {
 			em.handlePanic(r, ctx)
