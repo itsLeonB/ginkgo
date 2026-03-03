@@ -191,7 +191,7 @@ func TestHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		handler := Handler(200, func(ctx *gin.Context) (any, error) {
+		handler := Handler("TestHandler.success", 200, func(ctx *gin.Context) (any, error) {
 			return map[string]string{"message": "success"}, nil
 		})
 
@@ -203,7 +203,7 @@ func TestHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		handler := Handler(200, func(ctx *gin.Context) (any, error) {
+		handler := Handler("TestHandler.error", 200, func(ctx *gin.Context) (any, error) {
 			return nil, assert.AnError
 		})
 
