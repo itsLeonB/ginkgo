@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"runtime/debug"
 	"strings"
 
@@ -134,17 +135,27 @@ func (em *errorMiddleware) identifyKnownError(err error) ungerr.AppError {
 	case *json.UnmarshalTypeError:
 		return ungerr.BadRequestError(fmt.Sprintf("invalid value for field %s", e.Field))
 
+	case *net.OpError:
+		if e.Timeout() {
+			return ungerr.TimeoutError("your connection may be slow, please retry")
+		}
+		return identifyOtherErrors(e)
+
 	default:
-		errStr := e.Error()
-		if e == io.EOF || errStr == "EOF" {
-			return ungerr.BadRequestError("missing request body")
-		}
-		if strings.Contains(errStr, "connection reset by peer") ||
-			strings.Contains(errStr, "broken pipe") {
-			return ungerr.BadRequestError("connection error")
-		}
-		return nil
+		return identifyOtherErrors(e)
 	}
+}
+
+func identifyOtherErrors(e error) ungerr.AppError {
+	errStr := e.Error()
+	if e == io.EOF || errStr == "EOF" {
+		return ungerr.BadRequestError("missing request body")
+	}
+	if strings.Contains(errStr, "connection reset by peer") ||
+		strings.Contains(errStr, "broken pipe") {
+		return ungerr.BadRequestError("connection error")
+	}
+	return nil
 }
 
 func (em *errorMiddleware) handlePanic(r any, ctx *gin.Context, span trace.Span) {
