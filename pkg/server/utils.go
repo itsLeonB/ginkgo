@@ -97,7 +97,7 @@ func GetAndParseFromContext[T any](ctx *gin.Context, key string) (T, error) {
 	return ezutil.Parse[T](asserted)
 }
 
-func Handler(handlerName string, successCode int, handler func(ctx *gin.Context) (any, error)) gin.HandlerFunc {
+func Handler[T any](handlerName string, successCode int, handler func(ctx *gin.Context) (T, error)) gin.HandlerFunc {
 	tracer := otel.GetTracerProvider().Tracer(packageName)
 	return func(ctx *gin.Context) {
 		c, span := tracer.Start(ctx.Request.Context(), handlerName)
@@ -105,7 +105,7 @@ func Handler(handlerName string, successCode int, handler func(ctx *gin.Context)
 		defer span.End()
 
 		if resp, err := handler(ctx); err == nil {
-			ctx.JSON(successCode, response.JSONResponse{Data: resp})
+			ctx.JSON(successCode, response.JSONResponse[T]{Data: resp})
 		} else {
 			_ = ctx.Error(err)
 		}

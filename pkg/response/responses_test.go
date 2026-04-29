@@ -31,7 +31,7 @@ func TestNewErrorResponse(t *testing.T) {
 
 func TestPagination(t *testing.T) {
 	t.Run("WithPagination", func(t *testing.T) {
-		jr := NewResponse(nil)
+		jr := NewResponse[any](nil)
 		opts := QueryOptions{Page: 2, Limit: 10}
 		totalData := 25
 
@@ -46,7 +46,7 @@ func TestPagination(t *testing.T) {
 	})
 
 	t.Run("WithPagination zero limit", func(t *testing.T) {
-		jr := NewResponse(nil)
+		jr := NewResponse[any](nil)
 		opts := QueryOptions{Page: 1, Limit: 0}
 
 		jr = jr.WithPagination(opts, 100)
@@ -55,7 +55,7 @@ func TestPagination(t *testing.T) {
 	})
 
 	t.Run("WithPagination last page", func(t *testing.T) {
-		jr := NewResponse(nil)
+		jr := NewResponse[any](nil)
 		opts := QueryOptions{Page: 3, Limit: 10}
 		totalData := 25
 
